@@ -39,19 +39,13 @@ class Game:
         self.level = self.levels[idx]
         start_px = self.level.player_start if self.level.player_start else (TILE_SIZE*2, TILE_SIZE*2)
         self.player = Player(start_px, skin_idx)
+        
         self.all_sprites.empty()
         self.enemies.empty()
         self.all_sprites.add(self.player)
-        # find valid spawn tiles for enemies
-        valid_spawns = []
-        for y, row in enumerate(self.level.layout):
-            for x, ch in enumerate(row):
-                if ch != '#' and ch != 'P':
-                    valid_spawns.append((x*TILE_SIZE, y*TILE_SIZE))
-        random.shuffle(valid_spawns)
-        n_enemies = min(14, max(6, len(valid_spawns)//20))
-        for i in range(n_enemies):
-            sp = valid_spawns[i % len(valid_spawns)]
+        
+        # OPRAVA: Nepřátelé se vytvoří POUZE na pozicích definovaných jako 'E' v level.py
+        for i, sp in enumerate(self.level.enemy_spawns):
             kind = i % 5
             e = Enemy(sp, kind)
             self.enemies.add(e)
@@ -68,7 +62,6 @@ class Game:
                     if event.key == pygame.K_ESCAPE:
                         running = False
                     if event.key == pygame.K_f:
-                        # toggle fullscreen
                         pygame.display.toggle_fullscreen()
 
             # update
@@ -78,6 +71,7 @@ class Game:
                 if pygame.sprite.collide_rect(e, self.player):
                     self.ui.show_message(['You were caught! Press any key to quit.'])
                     running = False
+            
             # draw centered
             self.screen.fill((4,6,12))
             lx = self.level.width * TILE_SIZE
@@ -85,10 +79,10 @@ class Game:
             offset_x = max(0, (self.screen.get_width() - lx)//2)
             offset_y = max(0, (self.screen.get_height() - ly)//2)
             self.draw_level(self.level, offset_x, offset_y)
-            # draw sprites with offset
+            
             for s in self.all_sprites:
                 self.screen.blit(s.image, (s.rect.x + offset_x, s.rect.y + offset_y))
-            # HUD
+            
             hud = f"Collected: {self.player.collected}  Pellets left: {self.count_pellets()}"
             font = pygame.font.SysFont(None, 28)
             surf = font.render(hud, True, WHITE)
@@ -97,9 +91,7 @@ class Game:
         pygame.quit()
 
     def draw_level(self, level, ox, oy):
-        # neon walls: draw background corridors and glow
         wall_color = (40,120,220)
-        glow = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
         for y, row in enumerate(level.layout):
             for x, ch in enumerate(row):
                 px = ox + x * TILE_SIZE
