@@ -20,25 +20,45 @@ class Game:
         self.player = None
         self.enemies = pygame.sprite.Group()
         self.all_sprites = pygame.sprite.Group()
+        # player options
+        self.options = {'controls': 'both', 'skin': 0}
 
     def run(self):
-        # Intro/menu
-        lvl_idx = self.ui.selection_menu([f'Level {i+1}' for i in range(len(self.levels))], 'Select Level')
-        if lvl_idx is None:
-            pygame.quit()
-            return
-        skin_idx = self.ui.selection_menu(['Yellow', 'Cyan', 'Purple'], 'Select Skin')
-        if skin_idx is None:
-            pygame.quit()
-            return
-        self.current_level_idx = lvl_idx
-        self.start_level(self.current_level_idx, skin_idx)
-        self.loop()
+        while True:
+            choice = self.ui.show_main_menu()
+            if choice == 'quit':
+                pygame.quit()
+                return
+            if choice == 'settings':
+                res = self.ui.show_settings(self.options['controls'], self.options['skin'])
+                if res:
+                    self.options.update(res)
+                continue
+            if choice == 'play':
+                # show levels list using the new level menu
+                lvl_idx = self.ui.show_level_menu([f'Level {i+1}' for i in range(len(self.levels))], 'Select Level')
+                if lvl_idx is None:
+                    # back pressed
+                    continue
+                # use current options
+                action = self.start_and_play(lvl_idx, self.options['skin'], self.options['controls'])
+                if action == 'quit':
+                    pygame.quit()
+                    return
+                # if menu, loop back, if restart, restart same level
+                if action == 'restart':
+                    continue
+                if action == 'menu':
+                    continue
 
-    def start_level(self, idx, skin_idx):
+    def start_and_play(self, idx, skin_idx, controls):
+        self.start_level(idx, skin_idx, controls)
+        return self.loop()
+
+    def start_level(self, idx, skin_idx, controls):
         self.level = self.levels[idx]
         start_px = self.level.player_start if self.level.player_start else (TILE_SIZE*2, TILE_SIZE*2)
-        self.player = Player(start_px, skin_idx)
+        self.player = Player(start_px, skin_idx, controls)
         
         self.all_sprites.empty()
         self.enemies.empty()
@@ -50,6 +70,8 @@ class Game:
             e = Enemy(sp, kind)
             self.enemies.add(e)
             self.all_sprites.add(e)
+        # remember initial pellet total
+        self.initial_pellets = self.level.pellet_count
 
     def loop(self):
         running = True
@@ -57,10 +79,10 @@ class Game:
             dt = self.clock.tick(FPS) / 1000.0
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    running = False
+                    return 'quit'
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        running = False
+                        return 'menu'
                     if event.key == pygame.K_f:
                         pygame.display.toggle_fullscreen()
 
@@ -69,8 +91,21 @@ class Game:
             for e in list(self.enemies):
                 e.update(dt, self.level, self.player)
                 if pygame.sprite.collide_rect(e, self.player):
-                    self.ui.show_message(['You were caught! Press any key to quit.'])
-                    running = False
+                    choice = self.ui.show_end(self.player.collected)
+                    if choice == 'retry' or choice == 'restart':
+                        return 'restart'
+                    if choice == 'menu':
+                        return 'menu'
+                    return 'quit'
+            
+            # win condition: when collected pellets equals initial pellet count
+            if self.player.collected >= getattr(self, 'initial_pellets', self.level.pellet_count):
+                choice = self.ui.show_win(self.player.collected)
+                if choice == 'restart':
+                    return 'restart'
+                if choice == 'menu':
+                    return 'menu'
+                return 'quit'
             
             # draw centered
             self.screen.fill((4,6,12))
@@ -83,12 +118,13 @@ class Game:
             for s in self.all_sprites:
                 self.screen.blit(s.image, (s.rect.x + offset_x, s.rect.y + offset_y))
             
-            hud = f"Collected: {self.player.collected}  Pellets left: {self.count_pellets()}"
+            pellets_left = max(0, getattr(self, 'initial_pellets', self.level.pellet_count) - self.player.collected)
+            hud = f"Score: {self.player.score}   Collected: {self.player.collected}   Pellets left: {pellets_left}"
             font = pygame.font.SysFont(None, 28)
             surf = font.render(hud, True, WHITE)
             self.screen.blit(surf, (20,20))
             pygame.display.flip()
-        pygame.quit()
+        return 'quit'
 
     def draw_level(self, level, ox, oy):
         wall_color = (40,120,220)
@@ -102,7 +138,12 @@ class Game:
                 elif ch == '.':
                     pygame.draw.circle(self.screen, (255,220,100), (px + TILE_SIZE//2, py + TILE_SIZE//2), 3)
                 elif ch == 'O':
-                    pygame.draw.circle(self.screen, (255,100,120), (px + TILE_SIZE//2, py + TILE_SIZE//2), 6)
+                    # power pellet visual with glow ring
+                    center = (px + TILE_SIZE//2, py + TILE_SIZE//2)
+                    pygame.draw.circle(self.screen, (255,100,120), center, 6)
+                    ring = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+                    pygame.draw.circle(ring, (255,150,160,80), (TILE_SIZE//2, TILE_SIZE//2), 10)
+                    self.screen.blit(ring, (px - (TILE_SIZE//2 - TILE_SIZE//2), py - (TILE_SIZE//2 - TILE_SIZE//2)))
 
     def count_pellets(self):
         return sum(row.count('.') + row.count('O') for row in self.level.layout)
