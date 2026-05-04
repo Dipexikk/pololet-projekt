@@ -1,4 +1,5 @@
 import pygame
+import math
 from constants import TILE_SIZE, PLAYER_TPS
 
 class Player(pygame.sprite.Sprite):
@@ -6,7 +7,9 @@ class Player(pygame.sprite.Sprite):
         super().__init__()
         self.skin_index = skin_index
         self.controls = controls
-        self.image = self._make_image()
+        # load base skin image (high-res) and keep for smooth scaling at render time
+        self.base_image = self._load_base_skin(self.skin_index)
+        self.image = pygame.transform.smoothscale(self.base_image, (TILE_SIZE-4, TILE_SIZE-4))
         self.rect = self.image.get_rect()
         self.teleport_to(pos)
         self.target_grid = None
@@ -15,6 +18,8 @@ class Player(pygame.sprite.Sprite):
         self.vel = pygame.math.Vector2(0,0)
         self.collected = 0
         self.score = 0
+        # track rendering rotation (degrees)
+        self.render_angle = 0.0
 
         # Power pellet state
         self.powered = False
@@ -22,17 +27,30 @@ class Player(pygame.sprite.Sprite):
         self.power_duration = 7.0  # seconds of boost
         self.speed_multiplier = 1.6  # how much faster when powered
 
+    def _load_base_skin(self, index):
+        # try to load provided high-quality skins; fallback to generated larger surface
+        skin_files = [r'imgs/bejcek.png', r'imgs/majkl.png', r'imgs/komi.png', r'imgs/seda.png']
+        idx = index % len(skin_files)
+        try:
+            img = pygame.image.load(skin_files[idx]).convert_alpha()
+            return img
+        except Exception:
+            # create a clean larger fallback so smooth scaling looks ok
+            surf = pygame.Surface((TILE_SIZE * 3, TILE_SIZE * 3), pygame.SRCALPHA)
+            colors = [(255, 255, 0), (0, 200, 200), (200, 100, 255), (180,180,180)]
+            c = colors[idx % len(colors)]
+            pygame.draw.circle(surf, c, (surf.get_width()//2, surf.get_height()//2), surf.get_width()//2)
+            return surf
+
     def _make_image(self, glow=False):
-        surf = pygame.Surface((TILE_SIZE-4, TILE_SIZE-4), pygame.SRCALPHA)
-        colors = [(255, 255, 0), (0, 200, 200), (200, 100, 255)]
-        c = colors[self.skin_index % len(colors)]
-        pygame.draw.circle(surf, c, ((TILE_SIZE-4)//2, (TILE_SIZE-4)//2), (TILE_SIZE-4)//2)
+        # produce a small rect image used for rect sizing; final on-screen drawing will use base_image
+        img = pygame.transform.smoothscale(self.base_image, (TILE_SIZE-4, TILE_SIZE-4))
         if glow:
-            # draw a subtle glowing ring
+            # draw subtle overlay glow on top of the scaled image
             g = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
             pygame.draw.circle(g, (255,255,255,90), (TILE_SIZE//2, TILE_SIZE//2), (TILE_SIZE//2))
-            surf.blit(g, (-2, -2), special_flags=pygame.BLEND_RGBA_ADD)
-        return surf
+            img.blit(g, (-2, -2), special_flags=pygame.BLEND_RGBA_ADD)
+        return img
 
     def update(self, dt, level):
         # manage power timer
@@ -64,7 +82,11 @@ class Player(pygame.sprite.Sprite):
             if not level.is_wall(nx, ny):
                 self.target_grid = (nx, ny)
                 target_px = (nx * TILE_SIZE + TILE_SIZE//2, ny * TILE_SIZE + TILE_SIZE//2)
-                self.vel = pygame.math.Vector2(target_px[0]-self.rect.centerx, target_px[1]-self.rect.centery).normalize() * self.speed
+                vec = pygame.math.Vector2(target_px[0]-self.rect.centerx, target_px[1]-self.rect.centery)
+                if vec.length() != 0:
+                    self.vel = vec.normalize() * self.speed
+                    # set render angle based on velocity direction
+                    self.render_angle = math.degrees(math.atan2(-self.vel.y, self.vel.x))
 
         if self.target_grid:
             move = self.vel * dt
@@ -95,10 +117,12 @@ class Player(pygame.sprite.Sprite):
         self.powered = True
         self.power_time = self.power_duration
         self.speed = self.base_speed * self.speed_multiplier
+        # update image used for rect to include glow
         self.image = self._make_image(glow=True)
 
     def set_skin(self, index):
         self.skin_index = index
+        self.base_image = self._load_base_skin(index)
         self.image = self._make_image()
 
     def set_controls(self, controls):

@@ -1,5 +1,6 @@
 import pygame
 import random
+import math
 from collections import deque
 from constants import TILE_SIZE, ENEMY_TPS
 
@@ -7,8 +8,13 @@ class Enemy(pygame.sprite.Sprite):
     def __init__(self, pos, kind=0):
         super().__init__()
         self.kind = kind
-        self.image = self._make_image()
+        # load full-resolution base image (or fallback)
+        self.base_image = self._load_base_image()
+        # create a small image for rect sizing but keep base_image for final rendering
+        self.image = pygame.transform.smoothscale(self.base_image, (TILE_SIZE - 4, TILE_SIZE - 4))
         self.rect = self.image.get_rect()
+        # rendering angle
+        self.render_angle = 0.0
         
         # Rychlost - mírně snížená, aby se lépe manévrovalo v zatáčkách
         self.speed = ENEMY_TPS * TILE_SIZE 
@@ -16,19 +22,25 @@ class Enemy(pygame.sprite.Sprite):
         self.target = None
         self.teleport_to(pos)
 
+    def _load_base_image(self):
+        skin_file = r'imgs/enemy.png'
+        try:
+            img = pygame.image.load(skin_file).convert_alpha()
+            return img
+        except Exception:
+            # fallback: provide a larger surface to allow smooth scaling without heavy pixelation
+            surf = pygame.Surface((TILE_SIZE * 2, TILE_SIZE * 2), pygame.SRCALPHA)
+            colors = [(255, 0, 0), (255, 128, 0), (0, 200, 200), (100, 0, 200), (150,150,150)]
+            c = colors[self.kind % len(colors)]
+            pygame.draw.rect(surf, c, surf.get_rect())
+            return surf
+
     def teleport_to(self, pos):
         px, py = pos
         # Přesné vycentrování na střed dlaždice při startu
         cx = (px // TILE_SIZE) * TILE_SIZE + TILE_SIZE//2
         cy = (py // TILE_SIZE) * TILE_SIZE + TILE_SIZE//2
         self.rect.center = (cx, cy)
-
-    def _make_image(self):
-        surf = pygame.Surface((TILE_SIZE - 4, TILE_SIZE - 4), pygame.SRCALPHA)
-        colors = [(255, 0, 0), (255, 128, 0), (0, 200, 200), (100, 0, 200), (150,150,150)]
-        c = colors[self.kind % len(colors)]
-        pygame.draw.rect(surf, c, surf.get_rect())
-        return surf
 
     def find_path(self, level, target_px):
         start = level.pixel_to_grid(self.rect.centerx, self.rect.centery)
@@ -103,6 +115,12 @@ class Enemy(pygame.sprite.Sprite):
             
             if distance.length() > 0:
                 move_dist = self.speed * dt
+                
+                # set render angle based on movement direction
+                try:
+                    self.render_angle = math.degrees(math.atan2(-distance.y, distance.x))
+                except Exception:
+                    pass
                 
                 # Pokud jsme blízko cíle, prostě tam skočíme (prevence "přestřelení" do zdi)
                 if distance.length() <= move_dist:

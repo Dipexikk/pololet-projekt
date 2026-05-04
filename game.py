@@ -107,16 +107,41 @@ class Game:
                     return 'menu'
                 return 'quit'
             
-            # draw centered
+            # draw centered and scaled to fit the screen
             self.screen.fill((4,6,12))
-            lx = self.level.width * TILE_SIZE
-            ly = self.level.height * TILE_SIZE
-            offset_x = max(0, (self.screen.get_width() - lx)//2)
-            offset_y = max(0, (self.screen.get_height() - ly)//2)
-            self.draw_level(self.level, offset_x, offset_y)
+            level_pixel_w = self.level.width * TILE_SIZE
+            level_pixel_h = self.level.height * TILE_SIZE
+            sw, sh = self.screen.get_size()
+            # compute scale to fit level to screen (preserve aspect)
+            scale = min(sw / level_pixel_w, sh / level_pixel_h)
+            if scale <= 0:
+                scale = 1.0
+            scaled_w = int(level_pixel_w * scale)
+            scaled_h = int(level_pixel_h * scale)
+            offset_x = max(0, (self.screen.get_width() - scaled_w)//2)
+            offset_y = max(0, (self.screen.get_height() - scaled_h)//2)
+            # draw level with scale
+            self.draw_level(self.level, offset_x, offset_y, scale)
             
+            # draw sprites scaled and positioned according to scale
             for s in self.all_sprites:
-                self.screen.blit(s.image, (s.rect.x + offset_x, s.rect.y + offset_y))
+                # prefer using high-quality base_image if available
+                base = getattr(s, 'base_image', s.image)
+                # target size based on tile size to keep consistent proportions
+                target_w = int((TILE_SIZE - 4) * scale)
+                target_h = int((TILE_SIZE - 4) * scale)
+                sw_img = max(1, target_w)
+                sh_img = max(1, target_h)
+                # scale smoothly
+                img = pygame.transform.smoothscale(base, (sw_img, sh_img))
+                # apply rotation if sprite provides a render_angle (degrees)
+                angle = getattr(s, 'render_angle', 0.0)
+                if angle:
+                    img = pygame.transform.rotozoom(img, angle, 1.0)
+                # center the drawn image on the sprite rect position
+                draw_x = int(offset_x + s.rect.centerx * scale - img.get_width()//2)
+                draw_y = int(offset_y + s.rect.centery * scale - img.get_height()//2)
+                self.screen.blit(img, (draw_x, draw_y))
             
             pellets_left = max(0, getattr(self, 'initial_pellets', self.level.pellet_count) - self.player.collected)
             hud = f"Score: {self.player.score}   Collected: {self.player.collected}   Pellets left: {pellets_left}"
@@ -126,24 +151,30 @@ class Game:
             pygame.display.flip()
         return 'quit'
 
-    def draw_level(self, level, ox, oy):
+    def draw_level(self, level, ox, oy, scale=1.0):
         wall_color = (40,120,220)
+        # scaled tile size
+        tile_s = max(1, int(TILE_SIZE * scale))
+        inner_border = max(1, int(2 * scale))
         for y, row in enumerate(level.layout):
             for x, ch in enumerate(row):
-                px = ox + x * TILE_SIZE
-                py = oy + y * TILE_SIZE
+                px = ox + int(x * TILE_SIZE * scale)
+                py = oy + int(y * TILE_SIZE * scale)
                 if ch == '#':
-                    pygame.draw.rect(self.screen, (10,20,60), (px, py, TILE_SIZE, TILE_SIZE))
-                    pygame.draw.rect(self.screen, wall_color, (px+2, py+2, TILE_SIZE-4, TILE_SIZE-4), 2)
+                    pygame.draw.rect(self.screen, (10,20,60), (px, py, tile_s, tile_s))
+                    pygame.draw.rect(self.screen, wall_color, (px+inner_border, py+inner_border, max(1, tile_s-2*inner_border), max(1, tile_s-2*inner_border)), inner_border)
                 elif ch == '.':
-                    pygame.draw.circle(self.screen, (255,220,100), (px + TILE_SIZE//2, py + TILE_SIZE//2), 3)
+                    center = (px + tile_s//2, py + tile_s//2)
+                    radius = max(1, int(3 * scale))
+                    pygame.draw.circle(self.screen, (255,220,100), center, radius)
                 elif ch == 'O':
                     # power pellet visual with glow ring
-                    center = (px + TILE_SIZE//2, py + TILE_SIZE//2)
-                    pygame.draw.circle(self.screen, (255,100,120), center, 6)
-                    ring = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-                    pygame.draw.circle(ring, (255,150,160,80), (TILE_SIZE//2, TILE_SIZE//2), 10)
-                    self.screen.blit(ring, (px - (TILE_SIZE//2 - TILE_SIZE//2), py - (TILE_SIZE//2 - TILE_SIZE//2)))
+                    center = (px + tile_s//2, py + tile_s//2)
+                    radius = max(1, int(6 * scale))
+                    pygame.draw.circle(self.screen, (255,100,120), center, radius)
+                    ring = pygame.Surface((tile_s, tile_s), pygame.SRCALPHA)
+                    pygame.draw.circle(ring, (255,150,160,80), (tile_s//2, tile_s//2), max(1, int(10 * scale)))
+                    self.screen.blit(ring, (px, py))
 
     def count_pellets(self):
         return sum(row.count('.') + row.count('O') for row in self.level.layout)
