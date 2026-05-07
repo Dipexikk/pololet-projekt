@@ -1,6 +1,5 @@
 import pygame
 import random
-import math
 from collections import deque
 from constants import TILE_SIZE, ENEMY_TPS
 
@@ -26,13 +25,14 @@ class Enemy(pygame.sprite.Sprite):
         skin_file = r'imgs/enemy.png'
         try:
             img = pygame.image.load(skin_file).convert_alpha()
+            # Keep high resolution like player skins for smooth scaling
             return img
         except Exception:
             # fallback: provide a larger surface to allow smooth scaling without heavy pixelation
-            surf = pygame.Surface((TILE_SIZE * 2, TILE_SIZE * 2), pygame.SRCALPHA)
+            surf = pygame.Surface((TILE_SIZE * 3, TILE_SIZE * 3), pygame.SRCALPHA)
             colors = [(255, 0, 0), (255, 128, 0), (0, 200, 200), (100, 0, 200), (150,150,150)]
             c = colors[self.kind % len(colors)]
-            pygame.draw.rect(surf, c, surf.get_rect())
+            pygame.draw.circle(surf, c, (surf.get_width()//2, surf.get_height()//2), surf.get_width()//2)
             return surf
 
     def teleport_to(self, pos):
@@ -115,12 +115,6 @@ class Enemy(pygame.sprite.Sprite):
             
             if distance.length() > 0:
                 move_dist = self.speed * dt
-                
-                # set render angle based on movement direction
-                try:
-                    self.render_angle = math.degrees(math.atan2(-distance.y, distance.x))
-                except Exception:
-                    pass
                 
                 # Pokud jsme blízko cíle, prostě tam skočíme (prevence "přestřelení" do zdi)
                 if distance.length() <= move_dist:

@@ -1,5 +1,4 @@
 import pygame
-import math
 from constants import TILE_SIZE, PLAYER_TPS
 
 class Player(pygame.sprite.Sprite):
@@ -85,8 +84,11 @@ class Player(pygame.sprite.Sprite):
                 vec = pygame.math.Vector2(target_px[0]-self.rect.centerx, target_px[1]-self.rect.centery)
                 if vec.length() != 0:
                     self.vel = vec.normalize() * self.speed
-                    # set render angle based on velocity direction
-                    self.render_angle = math.degrees(math.atan2(-self.vel.y, self.vel.x))
+                    # set render angle based on velocity direction - horizontal flip
+                    if self.vel.x < 0:
+                        self.render_angle = 180  # face left
+                    else:
+                        self.render_angle = 0  # face right
 
         if self.target_grid:
             move = self.vel * dt

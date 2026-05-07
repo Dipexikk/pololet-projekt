@@ -134,10 +134,10 @@ class Game:
                 sh_img = max(1, target_h)
                 # scale smoothly
                 img = pygame.transform.smoothscale(base, (sw_img, sh_img))
-                # apply rotation if sprite provides a render_angle (degrees)
+                # apply horizontal flip based on render_angle (180 = face left, 0 = face right)
                 angle = getattr(s, 'render_angle', 0.0)
-                if angle:
-                    img = pygame.transform.rotozoom(img, angle, 1.0)
+                if angle == 180:
+                    img = pygame.transform.flip(img, True, False)
                 # center the drawn image on the sprite rect position
                 draw_x = int(offset_x + s.rect.centerx * scale - img.get_width()//2)
                 draw_y = int(offset_y + s.rect.centery * scale - img.get_height()//2)
