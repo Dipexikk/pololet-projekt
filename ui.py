@@ -24,13 +24,19 @@ class UI:
                 self.skin_images.append(img)
             except Exception:
                 self.skin_images.append(None)
-        # Load background character image for menu
-        self.bg_character = None
+        # Load left-side background characters image for menu
+        self.bg_characters = None
+        try:
+            img = pygame.image.load(r'imgs/background-characters.png')
+            self.bg_characters = img.convert_alpha()
+        except Exception:
+            self.bg_characters = None
+        self.bg_character_right = None
         try:
             img = pygame.image.load(r'imgs/background-character.png')
-            self.bg_character = img.convert_alpha()
+            self.bg_character_right = img.convert_alpha()
         except Exception:
-            self.bg_character = None
+            self.bg_character_right = None
 
     def draw_text(self, text, pos, font=None, color=WHITE):
         if font is None:
@@ -76,6 +82,38 @@ class UI:
         shadow_rect = txt.get_rect(center=(rect.centerx + shadow_offset, rect.centery + shadow_offset))
         surface.blit(shadow, shadow_rect)
         surface.blit(txt, txt.get_rect(center=rect.center))
+
+    def _draw_transparent_panel(self, rect, color=(20, 30, 50), alpha=128, border_radius=12):
+        panel_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        panel_surf.fill((*color, alpha))
+        self.screen.blit(panel_surf, rect.topleft)
+
+    def _draw_bg_characters(self, max_width=None, max_height=None, opacity=128, align='bottomleft'):
+        if self.bg_characters is None:
+            return
+        if max_width is None:
+            max_width = self.screen.get_width()
+        if max_height is None:
+            max_height = self.screen.get_height()
+        max_width = max(1, min(max_width, self.screen.get_width()))
+        max_height = max(1, min(max_height, self.screen.get_height()))
+        scale = min(max_width / self.bg_characters.get_width(), max_height / self.bg_characters.get_height()) * 0.8075
+        if scale <= 0:
+            return
+        char_width = int(self.bg_characters.get_width() * scale)
+        char_height = int(self.bg_characters.get_height() * scale)
+        char_img = pygame.transform.smoothscale(self.bg_characters, (char_width, char_height)).copy()
+        char_img.set_alpha(opacity)
+        if align == 'bottomleft':
+            x = 0
+            y = self.screen.get_height() - char_height
+        elif align == 'center':
+            x = max(0, (self.screen.get_width() - char_width) // 2)
+            y = max(0, (self.screen.get_height() - char_height) // 2)
+        else:
+            x = 0
+            y = self.screen.get_height() - char_height
+        self.screen.blit(char_img, (x, y))
 
     def selection_menu(self, options, title):
         # central modern panel
@@ -179,18 +217,19 @@ class UI:
                 self.screen.blit(self.bg_image, (0,0))
             else:
                 self.screen.fill((20, 20, 30))
-            
-            # Draw background character on the right side
-            if self.bg_character:
+
+            self._draw_bg_characters(self.screen.get_width(), self.screen.get_height(), opacity=255, align='bottomleft')
+            if self.bg_character_right:
                 char_height = int(self.screen.get_height())
-                char_scale = char_height / self.bg_character.get_height()
-                char_width = int(self.bg_character.get_width() * char_scale)
-                char_img = pygame.transform.scale(self.bg_character, (char_width, char_height))
+                char_scale = char_height / self.bg_character_right.get_height()
+                char_width = int(self.bg_character_right.get_width() * char_scale)
+                char_img = pygame.transform.scale(self.bg_character_right, (char_width, char_height))
                 char_x = self.screen.get_width() - char_width
                 char_y = self.screen.get_height() - char_height
                 self.screen.blit(char_img, (char_x, char_y))
 
-            pygame.draw.rect(self.screen, (20,30,50), panel, border_radius=12)
+            self._draw_transparent_panel(panel, (20,30,50), alpha=128, border_radius=12)
+            pygame.draw.rect(self.screen, (60,100,160), panel, 3, border_radius=12)
             # title
             title_str = 'PAC-M´S VS PÉŤABYTE'
             x = self.screen.get_width()//2
@@ -251,11 +290,21 @@ class UI:
                 self.screen.blit(self.bg_image, (0,0))
             else:
                 self.screen.fill((20, 20, 30))
-            
+
+            self._draw_bg_characters(self.screen.get_width(), self.screen.get_height(), opacity=255, align='bottomleft')
+            if self.bg_character_right:
+                char_height = int(self.screen.get_height())
+                char_scale = char_height / self.bg_character_right.get_height()
+                char_width = int(self.bg_character_right.get_width() * char_scale)
+                char_img = pygame.transform.scale(self.bg_character_right, (char_width, char_height))
+                char_x = self.screen.get_width() - char_width
+                char_y = self.screen.get_height() - char_height
+                self.screen.blit(char_img, (char_x, char_y))
+            self._draw_transparent_panel(panel, (20,30,50), alpha=128, border_radius=12)
+
             # title centered above panel
             title_s = self.font_big.render(title, True, YELLOW)
             self.screen.blit(title_s, title_s.get_rect(center=(self.screen.get_width()//2, panel.top+32)))
-            pygame.draw.rect(self.screen, (20,30,50), panel, border_radius=12)
             
             for i, r in enumerate(btns):
                 hover = r.collidepoint(mx,my)
@@ -311,8 +360,17 @@ class UI:
                 self.screen.blit(self.bg_image, (0,0))
             else:
                 self.screen.fill((20, 20, 30))
-            
-            pygame.draw.rect(self.screen, (20,30,50), panel, border_radius=12)
+
+            self._draw_bg_characters(self.screen.get_width(), self.screen.get_height(), opacity=255, align='bottomleft')
+            if self.bg_character_right:
+                char_height = int(self.screen.get_height())
+                char_scale = char_height / self.bg_character_right.get_height()
+                char_width = int(self.bg_character_right.get_width() * char_scale)
+                char_img = pygame.transform.scale(self.bg_character_right, (char_width, char_height))
+                char_x = self.screen.get_width() - char_width
+                char_y = self.screen.get_height() - char_height
+                self.screen.blit(char_img, (char_x, char_y))
+            self._draw_transparent_panel(panel, (20,30,50), alpha=128, border_radius=12)
             title = self.font_big.render('Settings', True, YELLOW)
             self.screen.blit(title, (panel.left+30, panel.top+20))
             # control choices
@@ -397,7 +455,17 @@ class UI:
                 self.screen.blit(self.bg_image, (0,0))
             else:
                 self.screen.fill((5,5,10))
-            pygame.draw.rect(self.screen, (40,20,20), panel, border_radius=12)
+
+            self._draw_bg_characters(self.screen.get_width(), self.screen.get_height(), opacity=255, align='bottomleft')
+            if self.bg_character_right:
+                char_height = int(self.screen.get_height())
+                char_scale = char_height / self.bg_character_right.get_height()
+                char_width = int(self.bg_character_right.get_width() * char_scale)
+                char_img = pygame.transform.scale(self.bg_character_right, (char_width, char_height))
+                char_x = self.screen.get_width() - char_width
+                char_y = self.screen.get_height() - char_height
+                self.screen.blit(char_img, (char_x, char_y))
+            self._draw_transparent_panel(panel, (40,20,20), alpha=128, border_radius=12)
             title = self.font_big.render('You Died', True, (220,40,60))
             self.screen.blit(title, title.get_rect(center=(panel.centerx, panel.top+50)))
             score_txt = self.font.render(f'Score: {score}', True, WHITE)
@@ -436,7 +504,17 @@ class UI:
                 self.screen.blit(self.bg_image, (0,0))
             else:
                 self.screen.fill((6,20,6))
-            pygame.draw.rect(self.screen, (20,40,20), panel, border_radius=12)
+
+            self._draw_bg_characters(self.screen.get_width(), self.screen.get_height(), opacity=255, align='bottomleft')
+            if self.bg_character_right:
+                char_height = int(self.screen.get_height())
+                char_scale = char_height / self.bg_character_right.get_height()
+                char_width = int(self.bg_character_right.get_width() * char_scale)
+                char_img = pygame.transform.scale(self.bg_character_right, (char_width, char_height))
+                char_x = self.screen.get_width() - char_width
+                char_y = self.screen.get_height() - char_height
+                self.screen.blit(char_img, (char_x, char_y))
+            self._draw_transparent_panel(panel, (20,40,20), alpha=128, border_radius=12)
             title = self.font_big.render('You Win!', True, (240,220,90))
             self.screen.blit(title, title.get_rect(center=(panel.centerx, panel.top+50)))
             score_txt = self.font.render(f'Score: {score}', True, WHITE)
