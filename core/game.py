@@ -1,11 +1,11 @@
 import pygame
 import sys
 import random
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, TILE_SIZE, FULLSCREEN, WHITE, YELLOW, BLUE
-from level import load_levels
-from player import Player
-from enemy import Enemy
-from ui import UI
+from config.constants import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, TILE_SIZE, FULLSCREEN, WHITE, YELLOW, BLUE
+from core.level import load_levels
+from entities.player import Player
+from entities.enemy import ChaserEnemy, PredatorEnemy, WandererEnemy, GuardEnemy, CowardEnemy
+from ui.screens import UI
 
 class Game:
     def __init__(self):
@@ -52,11 +52,15 @@ class Game:
                     continue
 
     def start_and_play(self, idx, skin_idx, controls):
-        self.start_level(idx, skin_idx, controls)
-        return self.loop()
+        while True:
+            self.start_level(idx, skin_idx, controls)
+            action = self.loop()
+            if action != 'restart':
+                return action
 
     def start_level(self, idx, skin_idx, controls):
         self.level = self.levels[idx]
+        self.level.reset()
         start_px = self.level.player_start if self.level.player_start else (TILE_SIZE*2, TILE_SIZE*2)
         self.player = Player(start_px, skin_idx, controls)
         
@@ -65,9 +69,15 @@ class Game:
         self.all_sprites.add(self.player)
         
         # OPRAVA: Nepřátelé se vytvoří POUZE na pozicích definovaných jako 'E' v level.py
+        enemy_types_by_level = {
+            0: [ChaserEnemy],
+            1: [PredatorEnemy, WandererEnemy],
+            2: [GuardEnemy, CowardEnemy, ChaserEnemy],
+        }
+        enemy_types = enemy_types_by_level.get(idx, [ChaserEnemy])
         for i, sp in enumerate(self.level.enemy_spawns):
-            kind = i % 5
-            e = Enemy(sp, kind)
+            enemy_class = enemy_types[i % len(enemy_types)]
+            e = enemy_class(sp)
             self.enemies.add(e)
             self.all_sprites.add(e)
         # remember initial pellet total
@@ -82,7 +92,11 @@ class Game:
                     return 'quit'
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        return 'menu'
+                        choice = self.ui.show_pause()
+                        if choice == 'menu':
+                            return 'menu'
+                        if choice == 'quit':
+                            return 'quit'
                     if event.key == pygame.K_f:
                         pygame.display.toggle_fullscreen()
 

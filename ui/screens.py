@@ -1,5 +1,6 @@
 import pygame
-from constants import WHITE, YELLOW
+from config.constants import WHITE, YELLOW
+from utils.resources import resource_path
 
 class UI:
     def __init__(self, screen, fonts=None):
@@ -10,7 +11,7 @@ class UI:
         # try loading menu background image from imgs/menu-background.png
         self.bg_image = None
         try:
-            img = pygame.image.load(r'imgs/menu-background.png')
+            img = pygame.image.load(resource_path(r'imgs/menu-background.png'))
             self.bg_image = pygame.transform.scale(img.convert(), (self.screen.get_width(), self.screen.get_height()))
         except Exception:
             self.bg_image = None
@@ -20,20 +21,20 @@ class UI:
         skin_files = [r'imgs/bejcek.png', r'imgs/majkl.png', r'imgs/komi.png', r'imgs/seda.png']
         for skin_file in skin_files:
             try:
-                img = pygame.image.load(skin_file).convert_alpha()
+                img = pygame.image.load(resource_path(skin_file)).convert_alpha()
                 self.skin_images.append(img)
             except Exception:
                 self.skin_images.append(None)
         # Load left-side background characters image for menu
         self.bg_characters = None
         try:
-            img = pygame.image.load(r'imgs/background-characters.png')
+            img = pygame.image.load(resource_path(r'imgs/background-characters.png'))
             self.bg_characters = img.convert_alpha()
         except Exception:
             self.bg_characters = None
         self.bg_character_right = None
         try:
-            img = pygame.image.load(r'imgs/background-character.png')
+            img = pygame.image.load(resource_path(r'imgs/background-character.png'))
             self.bg_character_right = img.convert_alpha()
         except Exception:
             self.bg_character_right = None
@@ -195,12 +196,24 @@ class UI:
         w = 550  # Made wider for better title fit
         btn_h = 58
         gap = 16
-        panel = pygame.Rect((self.screen.get_width()-w)//2, (self.screen.get_height()-300)//2, w, 300)
+        panel_h = 330
+        panel = pygame.Rect((self.screen.get_width()-w)//2, (self.screen.get_height()-panel_h)//2, w, panel_h)
         # buttons: Play, Settings, Quit
-        btns = [pygame.Rect(panel.left + 40, panel.top + 90 + i*(btn_h+gap), w-80, btn_h) for i in range(3)]
+        btn_w = int((w - 80) * 0.9)
+        btn_x = panel.centerx - btn_w // 2
+        info_gap = gap
+        half_btn_w = (btn_w - info_gap) // 2
+        bottom_y = panel.top + 90 + 2*(btn_h+gap)
+        bottom_x = panel.centerx - btn_w // 2
+        btns = [
+            pygame.Rect(btn_x, panel.top + 90, btn_w, btn_h),
+            pygame.Rect(btn_x, panel.top + 90 + btn_h + gap, btn_w, btn_h),
+            pygame.Rect(bottom_x, bottom_y, half_btn_w, btn_h),
+        ]
         labels = ['Play', 'Settings', 'Quit']
+        info_btn = pygame.Rect(btns[-1].right + info_gap, bottom_y, half_btn_w, btn_h)
         # Animation tracking
-        hover_times = [0.0] * len(btns)
+        hover_times = [0.0] * (len(btns) + 1)
         
         while True:
             dt = clock.tick(60) / 1000.0
@@ -259,6 +272,104 @@ class UI:
                 self._draw_modern_button(self.screen, r, labels[i], self.font, hover=hover, animation_time=hover_times[i])
                 if hover and clicked:
                     return labels[i].lower()
+
+            info_hover = info_btn.collidepoint(mx, my)
+            info_idx = len(btns)
+            if info_hover:
+                hover_times[info_idx] = min(1.0, hover_times[info_idx] + dt * 4)
+            else:
+                hover_times[info_idx] = max(0.0, hover_times[info_idx] - dt * 4)
+
+            self._draw_modern_button(self.screen, info_btn, 'Info', self.font, hover=info_hover, animation_time=hover_times[info_idx])
+            if info_hover and clicked:
+                self.show_info()
+            pygame.display.flip()
+
+    def show_info(self):
+        clock = pygame.time.Clock()
+        w = 900
+        h = 760
+        panel = pygame.Rect((self.screen.get_width()-w)//2, (self.screen.get_height()-h)//2, w, h)
+        back_btn = pygame.Rect(panel.centerx - 70, panel.bottom - 70, 140, 44)
+        hover_time = 0.0
+
+        sections = [
+            ('Jak se hra hraje', [
+                'Sbirej vsechny body v levelu a vyhybej se nepratelum.',
+                'Velky bod O ti na chvili zrychli hrace.',
+                'Kdyz sesbiras vsechny body, level je vyhrany.',
+            ]),
+            ('Ovladani', [
+                'Pohyb: sipky, WASD nebo obe varianty podle nastaveni.',
+                'Esc: pauza ve hre.',
+                'V nastaveni si muzes vybrat ovladani a skin hrace.',
+            ]),
+            ('Nepratele', [
+                'Lovec: jde primo po hraci.',
+                'Predator: miri pred hrace podle smeru pohybu.',
+                'Bloudil: pohybuje se nahodne po mape.',
+                'Strazce: hlida oblast a pri priblizeni zacne honit hrace.',
+                'Zbabelec: kdyz je hrac blizko, utika pryc.',
+            ]),
+            ('Levely', [
+                'Level 1: Lovec.',
+                'Level 2: Predator a Bloudil.',
+                'Level 3: Strazce, Zbabelec a Lovec.',
+            ]),
+        ]
+
+        while True:
+            dt = clock.tick(60) / 1000.0
+            mx, my = pygame.mouse.get_pos()
+            clicked = False
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    return
+                if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                    return
+                if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                    clicked = True
+
+            if self.bg_image:
+                self.screen.blit(self.bg_image, (0,0))
+            else:
+                self.screen.fill((20, 20, 30))
+
+            self._draw_bg_characters(self.screen.get_width(), self.screen.get_height(), opacity=255, align='bottomleft')
+            if self.bg_character_right:
+                char_height = int(self.screen.get_height())
+                char_scale = char_height / self.bg_character_right.get_height()
+                char_width = int(self.bg_character_right.get_width() * char_scale)
+                char_img = pygame.transform.scale(self.bg_character_right, (char_width, char_height))
+                char_x = self.screen.get_width() - char_width
+                char_y = self.screen.get_height() - char_height
+                self.screen.blit(char_img, (char_x, char_y))
+            self._draw_transparent_panel(panel, (20,30,50), alpha=190, border_radius=12)
+            pygame.draw.rect(self.screen, (60,100,160), panel, 3, border_radius=12)
+
+            title = self.font_big.render('Info', True, YELLOW)
+            self.screen.blit(title, title.get_rect(center=(panel.centerx, panel.top + 48)))
+
+            y = panel.top + 95
+            for section_title, lines in sections:
+                header = self.font.render(section_title, True, (240, 220, 90))
+                self.screen.blit(header, (panel.left + 50, y))
+                y += 30
+                for line in lines:
+                    text = self.font.render(line, True, WHITE)
+                    self.screen.blit(text, (panel.left + 70, y))
+                    y += 25
+                y += 12
+
+            hover = back_btn.collidepoint(mx, my)
+            if hover:
+                hover_time = min(1.0, hover_time + dt * 4)
+            else:
+                hover_time = max(0.0, hover_time - dt * 4)
+            self._draw_modern_button(self.screen, back_btn, 'Back', self.font_small, hover=hover, animation_time=hover_time)
+            if hover and clicked:
+                return
+
             pygame.display.flip()
 
     def show_level_menu(self, options, title='Select Level'):
@@ -477,6 +588,54 @@ class UI:
                 else:
                     hover_times[i] = max(0.0, hover_times[i] - dt * 4)
                 
+                self._draw_modern_button(self.screen, r, labels[i], self.font_small, hover=hover, animation_time=hover_times[i])
+                if hover and clicked:
+                    return labels[i].lower()
+            pygame.display.flip()
+
+    def show_pause(self):
+        clock = pygame.time.Clock()
+        background = self.screen.copy()
+        w = 420
+        panel = pygame.Rect((self.screen.get_width()-w)//2, (self.screen.get_height()-260)//2, w, 220)
+        btns = [
+            pygame.Rect(panel.left+40, panel.bottom-80, 150, 48),
+            pygame.Rect(panel.right-190, panel.bottom-80, 150, 48),
+        ]
+        labels = ['Resume', 'Menu']
+        hover_times = [0.0] * len(btns)
+
+        while True:
+            dt = clock.tick(60) / 1000.0
+            mx, my = pygame.mouse.get_pos()
+            clicked = False
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    return 'quit'
+                if e.type == pygame.KEYDOWN:
+                    if e.key == pygame.K_ESCAPE:
+                        return 'resume'
+                    if e.key == pygame.K_f:
+                        pygame.display.toggle_fullscreen()
+                if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                    clicked = True
+
+            self.screen.blit(background, (0, 0))
+            overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 120))
+            self.screen.blit(overlay, (0, 0))
+
+            self._draw_transparent_panel(panel, (20, 30, 50), alpha=190, border_radius=12)
+            title = self.font_big.render('Paused', True, WHITE)
+            self.screen.blit(title, title.get_rect(center=(panel.centerx, panel.top+58)))
+
+            for i, r in enumerate(btns):
+                hover = r.collidepoint(mx, my)
+                if hover:
+                    hover_times[i] = min(1.0, hover_times[i] + dt * 4)
+                else:
+                    hover_times[i] = max(0.0, hover_times[i] - dt * 4)
+
                 self._draw_modern_button(self.screen, r, labels[i], self.font_small, hover=hover, animation_time=hover_times[i])
                 if hover and clicked:
                     return labels[i].lower()

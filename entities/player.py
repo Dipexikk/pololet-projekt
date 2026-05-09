@@ -1,5 +1,6 @@
 import pygame
-from constants import TILE_SIZE, PLAYER_TPS
+from config.constants import TILE_SIZE, PLAYER_TPS
+from utils.resources import resource_path
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, skin_index=0, controls='both'):
@@ -31,7 +32,7 @@ class Player(pygame.sprite.Sprite):
         skin_files = [r'imgs/bejcek.png', r'imgs/majkl.png', r'imgs/komi.png', r'imgs/seda.png']
         idx = index % len(skin_files)
         try:
-            img = pygame.image.load(skin_files[idx]).convert_alpha()
+            img = pygame.image.load(resource_path(skin_files[idx])).convert_alpha()
             return img
         except Exception:
             # create a clean larger fallback so smooth scaling looks ok
